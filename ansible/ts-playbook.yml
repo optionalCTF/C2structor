@@ -1,0 +1,86 @@
+---
+- name: Deploy Havoc C2 Teamserver
+  hosts: localhost
+  become: true
+  vars:
+    go_version: "1.23.0"
+    havoc_repo: "https://github.com/HavocFramework/Havoc.git"
+    havoc_dir: "/opt/havoc"
+
+  tasks:
+    - name: Install required dependencies
+      ansible.builtin.apt:
+        name:
+          - git
+          - build-essential
+          - apt-utils
+          - cmake
+          - libfontconfig1
+          - libglu1-mesa-dev
+          - libgtest-dev
+          - libspdlog-dev
+          - libboost-all-dev
+          - libncurses5-dev
+          - libgdbm-dev
+          - libssl-dev
+          - libreadline-dev
+          - libffi-dev
+          - libsqlite3-dev
+          - libbz2-dev
+          - mesa-common-dev
+          - qtbase5-dev
+          - qtchooser
+          - qt5-qmake
+          - qtbase5-dev-tools
+          - libqt5websockets5
+          - libqt5websockets5-dev
+          - qtdeclarative5-dev
+          - qtbase5-dev
+          - libqt5websockets5-dev
+          - python3-dev
+          - libboost-all-dev
+          - mingw-w64
+          - nasm
+        state: present
+
+    - name: Clone Framework
+      ansible.builtin.shell: |
+        sudo git clone {{ havoc_repo }} {{ havoc_dir }}
+
+    - name: Build teamserver
+      ansible.builtin.shell: |
+        cd {{ havoc_dir }} && sudo make ts-build
+      args:
+        chdir: "{{ havoc_dir }}"
+        creates: "{{ havoc_dir }}/havoc"
+
+    - name: Create system service for teamserver
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/teamserver.service
+        content: |
+          [Unit]
+          Description=Havoc C2 Teamserver
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=root
+          ExecStart=/opt/havoc/havoc server --profile /tmp/ts-profile.yaotl
+          Restart=always
+          WorkingDirectory=/opt/havoc
+          StandardOutput=append:/var/log/havoc.log
+          StandardError=append:/var/log/havoc.log
+          LimitNOFILE=65535
+
+          [Install]
+          WantedBy=multi-user.target
+
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Enable and start teamserver
+      ansible.builtin.systemd:
+        name: teamserver
+        enabled: true
+        state: started

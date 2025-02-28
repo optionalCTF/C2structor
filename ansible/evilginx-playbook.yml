@@ -1,0 +1,33 @@
+---
+- name: Download and Build Evilginx2
+  hosts: localhost
+  become: true
+  vars:
+    go_version: "1.23.0"
+    evilginx_repo: "https://github.com/kgretzky/evilginx2.git"
+    evilginx_dir: "/opt/evilginx2"
+
+  tasks:
+    - name: Install required dependencies
+      ansible.builtin.apt:
+        name:
+          - git
+          - make
+          - nodejs
+        state: present
+
+    - name: Clone Framework
+      ansible.builtin.git:
+        repo: "{{ evilginx_repo }}"
+        dest: "{{ evilginx_dir }}"
+
+    - name: Build Evilginx
+      ansible.builtin.shell: |
+        cd {{ evilginx_dir }} && sudo make
+      args:
+        chdir: "{{ evilginx_dir }}"
+        creates: "{{ evilginx_dir }}/build/evilginx"
+    
+    - name: Build Complete
+      ansible.builtin.debug:
+        msg: "Evilginx2 build complete! Binary can be found in {{ evilginx_dir }}/build/evilginx"

@@ -1,0 +1,65 @@
+---
+- name: Deploy Gophish Server
+  hosts: localhost
+  become: true
+  vars:
+    go_version: "1.23.0"
+    gophish_repo: "https://github.com/gophish/gophish.git"
+    gophish_dir: "/opt/gophish"
+    gophish_log: "/var/log/gophish.log"
+
+  tasks:
+    - name: Install required dependencies
+      ansible.builtin.apt:
+        name:
+          - git
+        state: present
+
+    - name: Clone Framework
+      ansible.builtin.git:
+        repo: "{{ gophish_repo }}"
+        dest: "{{ gophish_dir }}"
+
+    - name: Build Gophish Server
+      ansible.builtin.shell: |
+        cd {{ gophish_dir }} && go build
+      args:
+        chdir: "{{ gophish_dir }}"
+        creates: "{{ gophish_repo }}/gophish"
+
+    - name: Add logging to config.log
+      ansible.builtin.replace:
+        path: "{{ gophish_dir }}/config.json"
+        regexp: '"filename":\s*""'
+        replace: '"filename": "{{ gophish_log }}"'
+
+    - name: Create system service for gophish
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/gophish.service
+        content: |
+          [Unit]
+          Description=Gophish Server
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=root
+          ExecStart=/opt/gophish/gophish
+          Restart=always
+          WorkingDirectory=/opt/gophish
+          StandardOutput=append:/var/log/gophish.log
+          StandardError=append:/var/log/gophish.log
+          LimitNOFILE=65535
+
+          [Install]
+          WantedBy=multi-user.target
+
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Enable and start teamserver
+      ansible.builtin.systemd:
+        name: gophish
+        enabled: true
+        state: started
